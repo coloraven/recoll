@@ -44,10 +44,15 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 ; VC++ redistributable runtime. Extracted by VC2017RedistNeedsInstall(), if needed.
-Source: "D:\install\recoll\Share\dist\VC_redist.x64.exe"; DestDir: {tmp}; Flags: dontcopy
+; Source: "D:\install\recoll\Share\dist\VC_redist.x64.exe"; DestDir: {tmp}; Flags: dontcopy
+
+#ifndef StagingDir
+#define StagingDir "..\..\staging"
+#endif
+
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
-Source: "D:\install\recoll\recoll.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "D:\install\recoll\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#StagingDir}\bin\recoll.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#StagingDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
