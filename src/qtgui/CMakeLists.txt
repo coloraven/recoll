@@ -199,12 +199,15 @@ endif()
 
 ### Special handling of translation files
 
-find_package(Qt${QT_MAJOR_VERSION} COMPONENTS LinguistTools)
+find_package(Qt${QT_MAJOR_VERSION} COMPONENTS LinguistTools REQUIRED)
 
-# include all *.ts files under locale
-file(GLOB TRANS_FILES "qtgui/i18n/*.ts")
+# Paths are relative to this CMakeLists (src/qtgui/), so use i18n/*.ts — not qtgui/i18n/*.ts.
+file(GLOB TRANS_FILES "${CMAKE_CURRENT_SOURCE_DIR}/i18n/*.ts")
+if (NOT TRANS_FILES)
+    message(FATAL_ERROR "No Qt translation .ts files found under ${CMAKE_CURRENT_SOURCE_DIR}/i18n")
+endif()
 
-# Put generated *.qm to output dir's locale
+# Put generated *.qm next to the build tree (build_mingw/i18n/)
 set_source_files_properties(${TRANS_FILES} PROPERTIES
     OUTPUT_LOCATION "${PROJECT_BINARY_DIR}/i18n")
 
@@ -212,3 +215,6 @@ set_source_files_properties(${TRANS_FILES} PROPERTIES
 qt_add_translation(QM_FILES ${TRANS_FILES})
 
 target_sources(recoll PRIVATE ${QM_FILES})
+
+install(FILES ${QM_FILES}
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/recoll/translations)

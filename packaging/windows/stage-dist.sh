@@ -39,8 +39,15 @@ mkdir -p "$DIST_DIR"
 cp "$BUILD_DIR/recoll.exe" "$BUILD_DIR/recollindex.exe" "$BUILD_DIR/recollq.exe" "$DIST_DIR/"
 cp "$ROOT/src/desktop/recoll.ico" "$DIST_DIR/"
 
-# Deploy Qt plugins/DLL next to GUI.
-windeployqt6 --release --no-translations "$DIST_DIR/recoll.exe"
+# Deploy Qt plugins/DLL next to GUI. Include Chinese Qt widget translations.
+windeployqt6 --release --translations zh_CN "$DIST_DIR/recoll.exe"
+
+# Help Qt find shipped translations next to the executable on end-user machines.
+cat > "$DIST_DIR/qt.conf" <<'EOF'
+[Paths]
+Prefix = .
+Translations = translations
+EOF
 
 # Copy MinGW / library deps discovered via ldd (recursive until fixed point).
 # IMPORTANT: use ${MSYSTEM_PREFIX}/bin — do NOT prefix with an extra '/', which
@@ -120,10 +127,18 @@ for dll in \
   fi
 done
 
+# Datadir layout expected by path_rclpkgdatadir() on Windows:
+#   <exeDir>/share/examples/recoll.conf
+# Official Windows builds also ship Share/translations/*.qm
+mkdir -p "$DIST_DIR/share/examples" "$DIST_DIR/share/filters" "$DIST_DIR/share/translations"
+
+# Copy example config files into share/examples (not share/sampleconf).
+tar -C "$ROOT/src/sampleconf" --dereference -cf - . \
+  | tar -C "$DIST_DIR/share/examples" -xf -
+
 # filters/ has git symlinks; dereference for Windows packages.
-mkdir -p "$DIST_DIR/share"
-tar -C "$ROOT/src" --dereference -cf - sampleconf filters \
-  | tar -C "$DIST_DIR/share" -xf -
+tar -C "$ROOT/src/filters" --dereference -cf - . \
+  | tar -C "$DIST_DIR/share/filters" -xf -
 for f in conftree.py rclconfig.py; do
   if [ -f "$ROOT/src/python/recoll/recoll/$f" ]; then
     cp -f "$ROOT/src/python/recoll/recoll/$f" "$DIST_DIR/share/filters/$f"
@@ -131,6 +146,23 @@ for f in conftree.py rclconfig.py; do
 done
 need "$DIST_DIR/share/filters/conftree.py"
 need "$DIST_DIR/share/filters/rclconfig.py"
+need "$DIST_DIR/share/examples/recoll.conf"
+
+# Recoll UI translations (built by qt_add_translation into build_mingw/i18n/).
+I18N_DIR="$BUILD_DIR/i18n"
+if [ ! -d "$I18N_DIR" ]; then
+  echo "ERROR: translation dir missing: $I18N_DIR" >&2
+  echo "CMake must compile src/qtgui/i18n/*.ts into .qm files." >&2
+  exit 1
+fi
+cp -f "$I18N_DIR"/*.qm "$DIST_DIR/share/translations/"
+need "$DIST_DIR/share/translations/recoll_zh_CN.qm"
+# Also keep a copy under exeDir/translations for Qt's qt.conf lookup helpers.
+mkdir -p "$DIST_DIR/translations"
+cp -f "$DIST_DIR/share/translations"/*.qm "$DIST_DIR/translations/" 2>/dev/null || true
+
+echo "Packaged Recoll translations:"
+ls -lh "$DIST_DIR/share/translations"/recoll_zh*.qm
 
 mkdir -p "$ASSETS_DIR"
 (

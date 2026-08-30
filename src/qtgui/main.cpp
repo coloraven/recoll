@@ -418,20 +418,43 @@ int main(int argc, char **argv)
 
     // Translations for Qt standard widgets
     QTranslator qt_trans(0);
-    if (qt_trans.load(QString("qt_%1").arg(slang), 
+    QStringList qt_prefixes{"qt_", "qtbase_"};
+    QStringList qt_paths{
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
-                      QLibraryInfo::path
+        QLibraryInfo::path(QLibraryInfo::TranslationsPath),
 #else
-                      QLibraryInfo::location
+        QLibraryInfo::location(QLibraryInfo::TranslationsPath),
 #endif
-                      (QLibraryInfo::TranslationsPath))) {
-        app.installTranslator(&qt_trans);
+        QCoreApplication::applicationDirPath() + "/translations",
+    };
+    bool qt_loaded = false;
+    for (const auto& prefix : qt_prefixes) {
+        for (const auto& qpath : qt_paths) {
+            if (qt_trans.load(prefix + slang, qpath)) {
+                app.installTranslator(&qt_trans);
+                qt_loaded = true;
+                break;
+            }
+        }
+        if (qt_loaded)
+            break;
     }
 
     // Translations for Recoll
     string translatdir = path_cat(theconfig->getDatadir(), "translations");
     QTranslator translator(0);
-    auto loaded = translator.load(QString("recoll_") + slang, translatdir.c_str());
+    auto loaded = translator.load(QString("recoll_") + slang, u8s2qs(translatdir));
+    // Fallback: zh -> zh_CN (and files next to the executable).
+    if (!loaded && slang.startsWith("zh")) {
+        loaded = translator.load(QString("recoll_zh_CN"), u8s2qs(translatdir));
+    }
+    if (!loaded) {
+        QString localdir = QCoreApplication::applicationDirPath() + "/translations";
+        loaded = translator.load(QString("recoll_") + slang, localdir);
+        if (!loaded && slang.startsWith("zh")) {
+            loaded = translator.load(QString("recoll_zh_CN"), localdir);
+        }
+    }
     if (loaded)
         app.installTranslator(&translator);
 

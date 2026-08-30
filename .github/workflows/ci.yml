@@ -95,7 +95,13 @@ jobs:
           test -f build_mingw/recoll.exe || { echo "ERROR: recoll.exe (GUI) missing"; exit 1; }
           test -f build_mingw/recollindex.exe || { echo "ERROR: recollindex.exe missing"; exit 1; }
           test -f build_mingw/recollq.exe || { echo "ERROR: recollq.exe missing"; exit 1; }
+          test -f build_mingw/i18n/recoll_zh_CN.qm || {
+            echo "ERROR: Chinese translation recoll_zh_CN.qm was not built"
+            ls -la build_mingw/i18n || true
+            exit 1
+          }
           ls -lh build_mingw/recoll.exe build_mingw/recollindex.exe build_mingw/recollq.exe
+          ls -lh build_mingw/i18n/recoll_zh*.qm
 
       # Package + publish on main push / manual dispatch (not PRs).
       # Binaries go to a GitHub Release — never committed into the git tree.

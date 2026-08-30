@@ -112,6 +112,8 @@ jobs:
           test -f build_mingw/recoll.exe
           test -f build_mingw/recollindex.exe
           test -f build_mingw/recollq.exe
+          test -f build_mingw/i18n/recoll_zh_CN.qm
+          ls -lh build_mingw/i18n/recoll_zh*.qm
 
       - name: Prepare installer dist
         run: |
