@@ -114,13 +114,25 @@ jobs:
 
       - name: Build Inno Setup installer
         if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-        shell: cmd
         run: |
-          for /f "delims=" %%v in (src\RECOLL-VERSION.txt) do set "RECOLL_VER=%%v"
-          "%programfiles(x86)%\Inno Setup 6\ISCC.exe" /DMyAppVersion=%RECOLL_VER% installer\recoll.iss
-          mkdir release-assets 2>nul
-          copy /Y installer\Output\recoll-*-win64-setup.exe release-assets\recoll-win64-setup.exe
-          dir release-assets
+          set -euo pipefail
+          VERSION=$(tr -d '[:space:]' < src/RECOLL-VERSION.txt)
+          # ISCC is a Windows native binary — invoke via cmd while keeping bash for safe file ops.
+          cmd.exe //C "\"%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe\" /DMyAppVersion=${VERSION} installer\\recoll.iss"
+
+          mkdir -p release-assets
+          setup_src=$(ls -1 installer/Output/recoll-*-win64-setup.exe | head -n 1)
+          test -n "$setup_src"
+          # Avoid CMD "copy wildcard -> fixed name" which produced a 27-byte corrupt file.
+          cp -f "$setup_src" release-assets/recoll-win64-setup.exe
+          size=$(wc -c < release-assets/recoll-win64-setup.exe | tr -d ' ')
+          echo "Installer: $setup_src -> release-assets/recoll-win64-setup.exe ($size bytes)"
+          if [ "$size" -lt 1000000 ]; then
+            echo "ERROR: installer is suspiciously small ($size bytes)" >&2
+            ls -la installer/Output release-assets >&2
+            exit 1
+          fi
+          ls -lh release-assets/
 
       - name: Publish continuous GitHub Release
         if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')

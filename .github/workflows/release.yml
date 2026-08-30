@@ -126,16 +126,26 @@ jobs:
           fi
 
       - name: Build Inno Setup installer
-        shell: cmd
         run: |
-          for /f "delims=" %%v in (src\RECOLL-VERSION.txt) do set "RECOLL_VER=%%v"
-          "%programfiles(x86)%\Inno Setup 6\ISCC.exe" /DMyAppVersion=%RECOLL_VER% installer\recoll.iss
-          mkdir release-assets 2>nul
-          if /I "%GITHUB_EVENT_NAME%"=="workflow_dispatch" (
-            copy /Y installer\Output\recoll-*-win64-setup.exe release-assets\recoll-win64-setup.exe
-          ) else (
-            copy /Y installer\Output\recoll-*-win64-setup.exe release-assets\
-          )
+          set -euo pipefail
+          VERSION=$(tr -d '[:space:]' < src/RECOLL-VERSION.txt)
+          cmd.exe //C "\"%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe\" /DMyAppVersion=${VERSION} installer\\recoll.iss"
+          mkdir -p release-assets
+          setup_src=$(ls -1 installer/Output/recoll-*-win64-setup.exe | head -n 1)
+          test -n "$setup_src"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            dest=release-assets/recoll-win64-setup.exe
+          else
+            dest="release-assets/$(basename "$setup_src")"
+          fi
+          cp -f "$setup_src" "$dest"
+          size=$(wc -c < "$dest" | tr -d ' ')
+          echo "Installer: $setup_src -> $dest ($size bytes)"
+          if [ "$size" -lt 1000000 ]; then
+            echo "ERROR: installer is suspiciously small ($size bytes)" >&2
+            exit 1
+          fi
+          ls -lh release-assets/
 
       - name: Upload versioned release assets
         if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'release'
