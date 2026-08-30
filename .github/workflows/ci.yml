@@ -97,10 +97,10 @@ jobs:
           test -f build_mingw/recollq.exe || { echo "ERROR: recollq.exe missing"; exit 1; }
           ls -lh build_mingw/recoll.exe build_mingw/recollindex.exe build_mingw/recollq.exe
 
-      # Package + publish only on push to main (not PRs).
+      # Package + publish on main push / manual dispatch (not PRs).
       # Binaries go to a GitHub Release — never committed into the git tree.
       - name: Stage portable package
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         run: |
           set -euo pipefail
           VERSION=$(tr -d '[:space:]' < src/RECOLL-VERSION.txt)
@@ -140,11 +140,21 @@ jobs:
             fi
           done
 
+          # filters/ contains git symlinks (conftree.py, rclconfig.py). On Windows
+          # runners `cp -r` fails creating those links — dereference into real files.
           mkdir -p installer/dist/share
-          cp -r src/sampleconf installer/dist/share/
-          cp -r src/filters installer/dist/share/
+          tar -C src --dereference -cf - sampleconf filters \
+            | tar -C installer/dist/share -xf -
+          # If checkout left symlink stubs as text files, replace with real modules.
+          for f in conftree.py rclconfig.py; do
+            if [ -f "src/python/recoll/recoll/$f" ]; then
+              cp -f "src/python/recoll/recoll/$f" "installer/dist/share/filters/$f"
+            fi
+          done
 
           test -f installer/dist/recoll.exe
+          test -f installer/dist/share/filters/conftree.py
+          test -f installer/dist/share/filters/rclconfig.py
           mkdir -p release-assets
           (
             cd installer/dist
@@ -153,7 +163,7 @@ jobs:
           ls -lh release-assets/
 
       - name: Build Inno Setup installer
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         shell: cmd
         run: |
           for /f "delims=" %%v in (src\RECOLL-VERSION.txt) do set "RECOLL_VER=%%v"
@@ -163,7 +173,7 @@ jobs:
           dir release-assets
 
       - name: Rename installer with commit SHA
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         run: |
           set -euo pipefail
           setup=$(ls release-assets/recoll-*-win64-setup.exe | head -1)
@@ -171,7 +181,7 @@ jobs:
           ls -lh release-assets/
 
       - name: Publish continuous GitHub Release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: continuous
