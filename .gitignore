@@ -1,6 +1,12 @@
 *.dep
 *.dep.stamp
 *.exe
+# Local download of CI GUI artifacts (portable zip / installer)
+/dist/
+/installer/dist/
+/installer/Output/
+/staging/
+/build_mingw/
 *.idb
 *.ilk
 *.kdev4

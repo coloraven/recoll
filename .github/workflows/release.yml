@@ -3,6 +3,7 @@ name: Release
 on:
   release:
     types: [published]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -50,6 +51,7 @@ jobs:
           tar czf recoll-linux-x64.tar.gz -C release recoll-linux-x64
 
       - name: Upload release asset
+        if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
           files: src/recoll-linux-x64.tar.gz
@@ -73,10 +75,13 @@ jobs:
             mingw-w64-x86_64-ninja
             mingw-w64-x86_64-qt6-base
             mingw-w64-x86_64-qt6-tools
+            mingw-w64-x86_64-qt6-translations
+            mingw-w64-x86_64-qt6-svg
             mingw-w64-x86_64-xapian-core
             mingw-w64-x86_64-libxml2
             mingw-w64-x86_64-libxslt
             mingw-w64-x86_64-zlib
+            zip
 
       - name: Fix xapian cmake config path
         run: |
@@ -92,46 +97,60 @@ jobs:
             -DRECOLL_ENABLE_LIBMAGIC=OFF \
             -DRECOLL_ENABLE_SYSTEMD=OFF \
             -DRECOLL_ENABLE_X11MON=OFF \
-            -DRECOLL_BUILD_TESTS=OFF
+            -DRECOLL_BUILD_TESTS=OFF \
+            -DRECOLL_QTGUI=ON
 
       - name: Build
         run: cmake --build build_mingw --parallel
 
-      - name: Verify build
+      - name: Verify GUI and CLI binaries
         run: |
-          test -f build_mingw/recoll.exe && echo "recoll.exe OK"
-          test -f build_mingw/recollindex.exe && echo "recollindex.exe OK"
-          test -f build_mingw/recollq.exe && echo "recollq.exe OK"
+          set -euo pipefail
+          test -f build_mingw/recoll.exe
+          test -f build_mingw/recollindex.exe
+          test -f build_mingw/recollq.exe
 
       - name: Prepare installer dist
         run: |
-          VERSION=$(cat src/RECOLL-VERSION.txt | tr -d '[:space:]')
-          mkdir -p installer/dist/share
+          set -euo pipefail
+          VERSION=$(tr -d '[:space:]' < src/RECOLL-VERSION.txt)
+          rm -rf installer/dist
+          mkdir -p installer/dist
 
-          # Copy executables
           cp build_mingw/recoll.exe build_mingw/recollindex.exe build_mingw/recollq.exe installer/dist/
+          cp src/desktop/recoll.ico installer/dist/
+          windeployqt6 --release --no-translations installer/dist/recoll.exe
 
-          # Deploy Qt dependencies
-          windeployqt6 installer/dist/recoll.exe
-
-          # Copy MinGW runtime DLLs
           for dll in \
             libgcc_s_seh-1.dll libstdc++-6.dll libwinpthread-1.dll \
-            libxapian-30.dll libxml2-16.dll libxslt-1.dll zlib1.dll libiconv-2.dll \
+            libxapian-30.dll \
+            libxml2-16.dll libxml2-2.dll libxml2.dll \
+            libxslt-1.dll libxslt.dll \
+            zlib1.dll libiconv-2.dll \
             libb2-1.dll libdouble-conversion.dll \
             libicuin78.dll libicuuc78.dll libicudt78.dll \
+            libicuin77.dll libicuuc77.dll libicudt77.dll \
+            libicuin76.dll libicuuc76.dll libicudt76.dll \
             libpcre2-16-0.dll libpcre2-8-0.dll libzstd.dll \
             libsystre-0.dll libtre-5.dll libintl-8.dll \
             libmd4c.dll libpng16-16.dll libfreetype-6.dll \
             libbz2-1.dll libbrotlidec.dll libbrotlicommon.dll \
             libharfbuzz-0.dll libgraphite2.dll libglib-2.0-0.dll; do
-            cp "/$MSYSTEM_PREFIX/bin/$dll" installer/dist/ 2>/dev/null || true
+            src="/$MSYSTEM_PREFIX/bin/$dll"
+            if [ -f "$src" ]; then
+              cp "$src" installer/dist/
+            fi
           done
 
-          # Copy icon, config, and filters
-          cp src/desktop/recoll.ico installer/dist/
+          mkdir -p installer/dist/share
           cp -r src/sampleconf installer/dist/share/
           cp -r src/filters installer/dist/share/
+
+          mkdir -p dist
+          (
+            cd installer/dist
+            zip -r "../../dist/recoll-${VERSION}-win64-portable.zip" .
+          )
 
       - name: Build Inno Setup installer
         shell: cmd
@@ -139,8 +158,26 @@ jobs:
           for /f "delims=" %%v in (src\RECOLL-VERSION.txt) do set "RECOLL_VER=%%v"
           "%programfiles(x86)%\Inno Setup 6\ISCC.exe" /DMyAppVersion=%RECOLL_VER% installer\recoll.iss
 
+      - name: Collect installer into dist/
+        run: |
+          mkdir -p dist
+          cp installer/Output/recoll-*-win64-setup.exe dist/
+          ls -lh dist/
+
       - name: Upload release assets
+        if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            installer/Output/recoll-*-win64-setup.exe
+            dist/recoll-*-win64-setup.exe
+            dist/recoll-*-win64-portable.zip
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: recoll-windows-gui
+          path: |
+            dist/*.zip
+            dist/*.exe
+          if-no-files-found: error
+          retention-days: 30

@@ -1,4 +1,5 @@
 ; Recoll Inno Setup Script
+; Expects a prepared flat tree at installer/dist/ (exes + Qt DLLs/plugins + share data).
 
 #ifndef MyAppVersion
 #define MyAppVersion "1.43.13"
@@ -7,7 +8,7 @@
 #define MyAppName "Recoll"
 #define MyAppPublisher "Recoll"
 #define MyAppURL "https://www.recoll.org/"
-#define MyAppExeName "recollindex.exe"
+#define MyAppExeName "recoll.exe"
 
 [Setup]
 AppId={{8B7E4A5F-3C2D-4E1A-9F8B-6D5C4A3B2E1F}
@@ -30,36 +31,25 @@ WizardStyle=modern
 ArchitecturesInstallIn64BitMode=x64compatible
 ArchitecturesAllowed=x64compatible
 
+[Tasks]
+Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
-#ifndef StagingDir
-#define StagingDir "..\staging"
-#endif
-
 [Files]
-; Main executables
-Source: "{#StagingDir}\bin\recollindex.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#StagingDir}\bin\recollq.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#StagingDir}\bin\recoll.exe"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
-
-; Configuration examples
-Source: "{#StagingDir}\share\recoll\examples\*"; DestDir: "{app}\examples"; Flags: ignoreversion recursesubdirs
-
-; Filters
-Source: "{#StagingDir}\share\recoll\filters\*"; DestDir: "{app}\filters"; Flags: ignoreversion recursesubdirs
-
-; Documentation
-Source: "{#StagingDir}\share\recoll\doc\*"; DestDir: "{app}\doc"; Flags: ignoreversion recursesubdirs
-
-; Any DLLs (e.g., Qt) placed in the staging bin folder by windeployqt
-Source: "{#StagingDir}\bin\*.dll"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
-Source: "{#StagingDir}\bin\platforms\*"; DestDir: "{app}\platforms"; Flags: ignoreversion recursesubdirs skipifsourcedoesntexist
+; All files from dist directory (executables, DLLs, Qt plugins, config, filters)
+; recoll.exe MUST be present — packaging must fail loudly if the GUI was not staged.
+Source: "dist\recoll.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "dist\recollindex.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "dist\recollq.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "dist\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\Recoll"; Filename: "{app}\recoll.exe"
-Name: "{group}\Recoll Index"; Filename: "{app}\{#MyAppExeName}"
+Name: "{group}\Recoll"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\recoll.ico"
+Name: "{group}\Recoll Index"; Filename: "{app}\recollindex.exe"
 Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\recoll.ico"; Tasks: desktopicon
 
 [Registry]
 Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; \
