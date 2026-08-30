@@ -42,6 +42,8 @@ jobs:
 
   build-windows-gui:
     runs-on: windows-latest
+    permissions:
+      contents: write
     defaults:
       run:
         shell: msys2 {0}
@@ -95,20 +97,27 @@ jobs:
           test -f build_mingw/recollq.exe || { echo "ERROR: recollq.exe missing"; exit 1; }
           ls -lh build_mingw/recoll.exe build_mingw/recollindex.exe build_mingw/recollq.exe
 
-      - name: Stage portable dist (GUI + Qt + filters)
+      # Package + publish only on push to main (not PRs).
+      # Binaries go to a GitHub Release — never committed into the git tree.
+      - name: Stage portable package
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           set -euo pipefail
           VERSION=$(tr -d '[:space:]' < src/RECOLL-VERSION.txt)
+          SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
+          ASSET_PREFIX="recoll-${VERSION}-${SHORT_SHA}-win64"
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+          echo "SHORT_SHA=${SHORT_SHA}" >> "$GITHUB_ENV"
+          echo "ASSET_PREFIX=${ASSET_PREFIX}" >> "$GITHUB_ENV"
+          export ASSET_PREFIX
+
           rm -rf installer/dist
           mkdir -p installer/dist
 
           cp build_mingw/recoll.exe build_mingw/recollindex.exe build_mingw/recollq.exe installer/dist/
           cp src/desktop/recoll.ico installer/dist/
-
-          # Deploy Qt runtime next to recoll.exe
           windeployqt6 --release --no-translations installer/dist/recoll.exe
 
-          # MinGW / library DLLs commonly needed at runtime
           for dll in \
             libgcc_s_seh-1.dll libstdc++-6.dll libwinpthread-1.dll \
             libxapian-30.dll \
@@ -135,42 +144,47 @@ jobs:
           cp -r src/sampleconf installer/dist/share/
           cp -r src/filters installer/dist/share/
 
-          echo "Staged files:"
-          find installer/dist -maxdepth 2 -type f | sort | head -80
           test -f installer/dist/recoll.exe
-          test -f installer/dist/platforms/qwindows.dll || \
-            test -d installer/dist/platforms
-
-          mkdir -p dist
+          mkdir -p release-assets
           (
             cd installer/dist
-            zip -r "../../dist/recoll-${VERSION}-win64-portable.zip" .
+            zip -r "../../release-assets/${ASSET_PREFIX}-portable.zip" .
           )
-          ls -lh "dist/recoll-${VERSION}-win64-portable.zip"
+          ls -lh release-assets/
 
       - name: Build Inno Setup installer
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         shell: cmd
         run: |
           for /f "delims=" %%v in (src\RECOLL-VERSION.txt) do set "RECOLL_VER=%%v"
           "%programfiles(x86)%\Inno Setup 6\ISCC.exe" /DMyAppVersion=%RECOLL_VER% installer\recoll.iss
-          dir installer\Output\
+          mkdir release-assets 2>nul
+          copy /Y installer\Output\recoll-*-win64-setup.exe release-assets\
+          dir release-assets
 
-      - name: Collect installer into dist/
+      - name: Rename installer with commit SHA
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           set -euo pipefail
-          mkdir -p dist
-          cp installer/Output/recoll-*-win64-setup.exe dist/
-          ls -lh dist/
+          setup=$(ls release-assets/recoll-*-win64-setup.exe | head -1)
+          mv "$setup" "release-assets/${ASSET_PREFIX}-setup.exe"
+          ls -lh release-assets/
 
-      - name: Upload Windows GUI artifacts
-        uses: actions/upload-artifact@v4
+      - name: Publish continuous GitHub Release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
         with:
-          name: recoll-windows-gui
-          path: |
-            dist/*.zip
-            dist/*.exe
-            build_mingw/recoll.exe
-            build_mingw/recollindex.exe
-            build_mingw/recollq.exe
-          if-no-files-found: error
-          retention-days: 14
+          tag_name: continuous
+          name: Continuous Windows GUI build
+          prerelease: true
+          generate_release_notes: true
+          body: |
+            Automated Windows GUI build from `main` (`${{ github.sha }}`).
+
+            - Portable zip: extract and run `recoll.exe`
+            - Setup: Inno Setup installer including Qt runtime
+
+            These assets are **not** stored in the git repository.
+          files: |
+            release-assets/*-portable.zip
+            release-assets/*-setup.exe

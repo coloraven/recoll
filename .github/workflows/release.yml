@@ -1,6 +1,9 @@
 name: Release
 
 on:
+  push:
+    tags:
+      - "v*"
   release:
     types: [published]
   workflow_dispatch:
@@ -51,7 +54,7 @@ jobs:
           tar czf recoll-linux-x64.tar.gz -C release recoll-linux-x64
 
       - name: Upload release asset
-        if: github.event_name == 'release'
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
           files: src/recoll-linux-x64.tar.gz
@@ -114,6 +117,7 @@ jobs:
         run: |
           set -euo pipefail
           VERSION=$(tr -d '[:space:]' < src/RECOLL-VERSION.txt)
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
           rm -rf installer/dist
           mkdir -p installer/dist
 
@@ -146,10 +150,10 @@ jobs:
           cp -r src/sampleconf installer/dist/share/
           cp -r src/filters installer/dist/share/
 
-          mkdir -p dist
+          mkdir -p release-assets
           (
             cd installer/dist
-            zip -r "../../dist/recoll-${VERSION}-win64-portable.zip" .
+            zip -r "../../release-assets/recoll-${VERSION}-win64-portable.zip" .
           )
 
       - name: Build Inno Setup installer
@@ -157,27 +161,13 @@ jobs:
         run: |
           for /f "delims=" %%v in (src\RECOLL-VERSION.txt) do set "RECOLL_VER=%%v"
           "%programfiles(x86)%\Inno Setup 6\ISCC.exe" /DMyAppVersion=%RECOLL_VER% installer\recoll.iss
+          mkdir release-assets 2>nul
+          copy /Y installer\Output\recoll-*-win64-setup.exe release-assets\
 
-      - name: Collect installer into dist/
-        run: |
-          mkdir -p dist
-          cp installer/Output/recoll-*-win64-setup.exe dist/
-          ls -lh dist/
-
-      - name: Upload release assets
-        if: github.event_name == 'release'
+      - name: Upload versioned release assets
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/recoll-*-win64-setup.exe
-            dist/recoll-*-win64-portable.zip
-
-      - name: Upload workflow artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: recoll-windows-gui
-          path: |
-            dist/*.zip
-            dist/*.exe
-          if-no-files-found: error
-          retention-days: 30
+            release-assets/recoll-*-win64-setup.exe
+            release-assets/recoll-*-win64-portable.zip

@@ -1,10 +1,10 @@
 *.dep
 *.dep.stamp
 *.exe
-# Local download of CI GUI artifacts (portable zip / installer)
-/dist/
+# Build / packaging scratch dirs (never commit binaries)
 /installer/dist/
 /installer/Output/
+/release-assets/
 /staging/
 /build_mingw/
 *.idb
