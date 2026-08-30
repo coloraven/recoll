@@ -11,6 +11,15 @@ ASSETS_DIR="${ASSETS_DIR:-$ROOT/release-assets}"
 VERSION="$(tr -d '[:space:]' < "$ROOT/src/RECOLL-VERSION.txt")"
 SHORT_SHA="${SHORT_SHA:-$(echo "${GITHUB_SHA:-local}" | cut -c1-7)}"
 ASSET_PREFIX="${ASSET_PREFIX:-recoll-${VERSION}-${SHORT_SHA}-win64}"
+# Continuous builds prefer stable asset names so each publish overwrites the previous file.
+if [ "${CONTINUOUS_ASSETS:-}" = "1" ]; then
+  PORTABLE_NAME="recoll-win64-portable.zip"
+  SETUP_BASENAME="recoll-win64-setup.exe"
+else
+  PORTABLE_NAME="${ASSET_PREFIX}-portable.zip"
+  SETUP_BASENAME="${ASSET_PREFIX}-setup.exe"
+fi
+
 
 echo "ROOT=$ROOT"
 echo "BUILD_DIR=$BUILD_DIR"
@@ -126,20 +135,24 @@ need "$DIST_DIR/share/filters/rclconfig.py"
 mkdir -p "$ASSETS_DIR"
 (
   cd "$DIST_DIR"
-  zip -r "${ASSETS_DIR}/${ASSET_PREFIX}-portable.zip" .
+  zip -r "${ASSETS_DIR}/${PORTABLE_NAME}" .
 )
 
 echo "VERSION=$VERSION"
 echo "SHORT_SHA=$SHORT_SHA"
 echo "ASSET_PREFIX=$ASSET_PREFIX"
+echo "PORTABLE_NAME=$PORTABLE_NAME"
+echo "SETUP_BASENAME=$SETUP_BASENAME"
 if [ -n "${GITHUB_ENV:-}" ]; then
   {
     echo "VERSION=$VERSION"
     echo "SHORT_SHA=$SHORT_SHA"
     echo "ASSET_PREFIX=$ASSET_PREFIX"
+    echo "PORTABLE_NAME=$PORTABLE_NAME"
+    echo "SETUP_BASENAME=$SETUP_BASENAME"
   } >> "$GITHUB_ENV"
 fi
 
 echo "Staged portable package:"
-ls -lh "${ASSETS_DIR}/${ASSET_PREFIX}-portable.zip"
+ls -lh "${ASSETS_DIR}/${PORTABLE_NAME}"
 echo "DLL count: $(find "$DIST_DIR" -name '*.dll' | wc -l)"

@@ -117,7 +117,11 @@ jobs:
         run: |
           set -euo pipefail
           chmod +x packaging/windows/stage-dist.sh
-          packaging/windows/stage-dist.sh
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            CONTINUOUS_ASSETS=1 packaging/windows/stage-dist.sh
+          else
+            packaging/windows/stage-dist.sh
+          fi
 
       - name: Build Inno Setup installer
         shell: cmd
@@ -125,7 +129,11 @@ jobs:
           for /f "delims=" %%v in (src\RECOLL-VERSION.txt) do set "RECOLL_VER=%%v"
           "%programfiles(x86)%\Inno Setup 6\ISCC.exe" /DMyAppVersion=%RECOLL_VER% installer\recoll.iss
           mkdir release-assets 2>nul
-          copy /Y installer\Output\recoll-*-win64-setup.exe release-assets\
+          if /I "%GITHUB_EVENT_NAME%"=="workflow_dispatch" (
+            copy /Y installer\Output\recoll-*-win64-setup.exe release-assets\recoll-win64-setup.exe
+          ) else (
+            copy /Y installer\Output\recoll-*-win64-setup.exe release-assets\
+          )
 
       - name: Upload versioned release assets
         if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'release'
@@ -146,6 +154,9 @@ jobs:
           generate_release_notes: true
           body: |
             Automated Windows GUI build from `main` (`${{ github.sha }}`).
+
+            - `recoll-win64-portable.zip`
+            - `recoll-win64-setup.exe`
           files: |
-            release-assets/recoll-*-win64-setup.exe
-            release-assets/recoll-*-win64-portable.zip
+            release-assets/recoll-win64-setup.exe
+            release-assets/recoll-win64-portable.zip
