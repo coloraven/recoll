@@ -126,12 +126,15 @@ jobs:
           fi
 
       - name: Build Inno Setup installer
+        shell: cmd
+        run: |
+          for /f "delims=" %%v in (src\RECOLL-VERSION.txt) do set "RECOLL_VER=%%v"
+          "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" /DMyAppVersion=%RECOLL_VER% installer\recoll.iss
+          dir installer\Output
+
+      - name: Collect installer asset
         run: |
           set -euo pipefail
-          VERSION=$(tr -d '[:space:]' < src/RECOLL-VERSION.txt)
-          ISCC="/c/Program Files (x86)/Inno Setup 6/ISCC.exe"
-          test -f "$ISCC"
-          "$ISCC" "/DMyAppVersion=${VERSION}" "installer/recoll.iss"
           mkdir -p release-assets
           setup_src=$(ls -1 installer/Output/recoll-*-win64-setup.exe | head -n 1)
           test -n "$setup_src"
