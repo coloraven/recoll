@@ -103,64 +103,8 @@ jobs:
         if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         run: |
           set -euo pipefail
-          VERSION=$(tr -d '[:space:]' < src/RECOLL-VERSION.txt)
-          SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
-          ASSET_PREFIX="recoll-${VERSION}-${SHORT_SHA}-win64"
-          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
-          echo "SHORT_SHA=${SHORT_SHA}" >> "$GITHUB_ENV"
-          echo "ASSET_PREFIX=${ASSET_PREFIX}" >> "$GITHUB_ENV"
-          export ASSET_PREFIX
-
-          rm -rf installer/dist
-          mkdir -p installer/dist
-
-          cp build_mingw/recoll.exe build_mingw/recollindex.exe build_mingw/recollq.exe installer/dist/
-          cp src/desktop/recoll.ico installer/dist/
-          windeployqt6 --release --no-translations installer/dist/recoll.exe
-
-          for dll in \
-            libgcc_s_seh-1.dll libstdc++-6.dll libwinpthread-1.dll \
-            libxapian-30.dll \
-            libxml2-16.dll libxml2-2.dll libxml2.dll \
-            libxslt-1.dll libxslt.dll \
-            zlib1.dll libiconv-2.dll \
-            libb2-1.dll libdouble-conversion.dll \
-            libicuin78.dll libicuuc78.dll libicudt78.dll \
-            libicuin77.dll libicuuc77.dll libicudt77.dll \
-            libicuin76.dll libicuuc76.dll libicudt76.dll \
-            libpcre2-16-0.dll libpcre2-8-0.dll libzstd.dll \
-            libsystre-0.dll libtre-5.dll libintl-8.dll \
-            libmd4c.dll libpng16-16.dll libfreetype-6.dll \
-            libbz2-1.dll libbrotlidec.dll libbrotlicommon.dll \
-            libharfbuzz-0.dll libgraphite2.dll libglib-2.0-0.dll \
-            libpcre2-64-0.dll; do
-            src="/$MSYSTEM_PREFIX/bin/$dll"
-            if [ -f "$src" ]; then
-              cp "$src" installer/dist/
-            fi
-          done
-
-          # filters/ contains git symlinks (conftree.py, rclconfig.py). On Windows
-          # runners `cp -r` fails creating those links — dereference into real files.
-          mkdir -p installer/dist/share
-          tar -C src --dereference -cf - sampleconf filters \
-            | tar -C installer/dist/share -xf -
-          # If checkout left symlink stubs as text files, replace with real modules.
-          for f in conftree.py rclconfig.py; do
-            if [ -f "src/python/recoll/recoll/$f" ]; then
-              cp -f "src/python/recoll/recoll/$f" "installer/dist/share/filters/$f"
-            fi
-          done
-
-          test -f installer/dist/recoll.exe
-          test -f installer/dist/share/filters/conftree.py
-          test -f installer/dist/share/filters/rclconfig.py
-          mkdir -p release-assets
-          (
-            cd installer/dist
-            zip -r "../../release-assets/${ASSET_PREFIX}-portable.zip" .
-          )
-          ls -lh release-assets/
+          chmod +x packaging/windows/stage-dist.sh
+          packaging/windows/stage-dist.sh
 
       - name: Build Inno Setup installer
         if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
