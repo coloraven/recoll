@@ -117,8 +117,9 @@ jobs:
         run: |
           set -euo pipefail
           VERSION=$(tr -d '[:space:]' < src/RECOLL-VERSION.txt)
-          # ISCC is a Windows native binary — invoke via cmd while keeping bash for safe file ops.
-          cmd.exe //C "\"%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe\" /DMyAppVersion=${VERSION} installer\\recoll.iss"
+          ISCC="/c/Program Files (x86)/Inno Setup 6/ISCC.exe"
+          test -f "$ISCC"
+          "$ISCC" "/DMyAppVersion=${VERSION}" "installer/recoll.iss"
 
           mkdir -p release-assets
           setup_src=$(ls -1 installer/Output/recoll-*-win64-setup.exe | head -n 1)
